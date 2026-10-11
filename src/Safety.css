@@ -1,0 +1,211 @@
+/* :root {
+    --primary-color: #2592eb;
+    --secondary-color: #fa60eb;
+    --background-color: #f3f4f6;
+    --white-color: #ffffff;
+    --text-color: #1f2937;
+    --alert-color: #ef4444;
+    --transition-speed: 0.3s;
+  }
+  
+  .safety-monitoring-container {
+    background: linear-gradient(135deg, var(--background-color), #1e59ce);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 2rem;
+  }
+  
+  .monitoring-wrapper {
+    width: 100%;
+    max-width: 1200px;
+    background-color: var(--white-color);
+    border-radius: 1.5rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+  }
+  
+  .monitoring-header {
+    background-color: var(--primary-color);
+    color: var(--white-color);
+    padding: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .system-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  
+  .ai-icon {
+    font-size: 2rem;
+  }
+  
+  .error-notification {
+    color: #fecaca;
+    font-size: 0.875rem;
+  }
+  
+  .video-monitoring-section {
+    position: relative;
+    margin: 1.5rem;
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  }
+  
+  .start-monitoring-btn {
+    position: absolute;
+    z-index: 10;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 1rem 2rem;
+    border-radius: 9999px;
+    transition: all var(--transition-speed);
+  }
+  
+  .start-monitoring-btn.btn-active {
+    background-color: var(--primary-color);
+    color: var(--white-color);
+    cursor: pointer;
+    animation: pulse 2s infinite;
+  }
+  
+  .start-monitoring-btn.btn-disabled {
+    background-color: #9ca3af;
+    cursor: not-allowed;
+  }
+  
+  .video-canvas-container {
+    position: relative;
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  
+  .monitoring-video, 
+  .detection-overlay-canvas {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  
+  .detection-overlay-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+  
+
+  
+  .incident-alert-container {
+    margin: 1.5rem;
+    border-radius: 1rem;
+    background-color: var(--alert-color);
+    padding: 1rem;
+  }
+  
+  .incident-alert-content {
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    text-align: center;
+  }
+  
+  .alert-title {
+    color: var(--alert-color);
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+  
+  .incident-capture-image {
+    max-width: 100%;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .detection-history-container {
+    background-color: var(--background-color);
+    margin: 1.5rem;
+    padding: 1.5rem;
+    border-radius: 1rem;
+  }
+  
+  .history-title {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+  }
+  
+  .history-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+  }
+  
+  .history-item {
+    background-color: var(--white-color);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    transition: transform var(--transition-speed);
+  }
+  
+  .history-item:hover {
+    transform: scale(1.05);
+  }
+  
+  .history-item-image {
+    width: 100%;
+    height: 250px;
+    object-fit: cover;
+  }
+  
+  .history-item-details {
+    padding: 1rem;
+    font-size: 0.875rem;
+    color: var(--text-color);
+  }
+  
+  .hidden-capture-canvas {
+    display: none;
+  }
+  
+  @keyframes pulse {
+    0% {
+      transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+      transform: translate(-50%, -50%) scale(1.05);
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .monitoring-wrapper {
+      max-width: 100%;
+      margin: 0;
+    }
+  
+    .video-canvas-container {
+      max-width: 100%;
+    }
+  
+    .history-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+   */
