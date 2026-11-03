@@ -14,14 +14,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
-
-# Test / debug scripts
-getMe.js
-getUpdates.js
-test-tg.js
-
-
-
+data/
 
 # Editor directories and files
 .vscode/*

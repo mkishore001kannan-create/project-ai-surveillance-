@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
@@ -16,6 +16,7 @@ const History = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    let mediaUrls = [];
     const loadHistory = async () => {
       try {
         await cleanOldIncidents(10);
@@ -25,7 +26,7 @@ const History = () => {
           ...inc,
           videoUrl: inc.videoBlob ? URL.createObjectURL(inc.videoBlob) : null
         }));
-        
+        mediaUrls = processedData.filter((inc) => inc.videoUrl).map((inc) => inc.videoUrl);
         setIncidents(processedData);
       } catch (error) {
         console.error("Failed to load history:", error);
@@ -37,9 +38,7 @@ const History = () => {
     loadHistory();
     
     return () => {
-      incidents.forEach(inc => {
-        if (inc.videoUrl) URL.revokeObjectURL(inc.videoUrl);
-      });
+      mediaUrls.forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
 
@@ -81,9 +80,10 @@ const History = () => {
               <span className="ai-icon">📅</span> Incident History
             </h1>
             <div className="header-actions">
-              <button onClick={() => navigate('/safety-monitoring-system')} className="test-btn">
-                Back to Monitoring
+              <button onClick={() => navigate('/dashboard')} className="test-btn">
+                Back to Dashboard
               </button>
+              <button onClick={() => navigate('/recording')} className="test-btn primary-action">Recording</button>
             </div>
           </div>
         </header>

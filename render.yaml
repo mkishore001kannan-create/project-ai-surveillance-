@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: sentinel-api
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm run server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SQLITE_PATH
+        value: /opt/render/project/src/data/sentinel.sqlite
+    disk:
+      name: sentinel-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1

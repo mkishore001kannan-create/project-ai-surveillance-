@@ -21,6 +21,15 @@ const initDB = () => {
 };
 
 export const saveIncident = async (incident) => {
+  if (localStorage.getItem('sentinel_token')) {
+    const serializableIncident = { ...incident };
+    delete serializableIncident.videoBlob;
+    await apiRequest('/api/incidents', {
+      method: 'POST',
+      body: JSON.stringify(serializableIncident),
+    });
+    return serializableIncident;
+  }
   const db = await initDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], 'readwrite');
@@ -40,6 +49,10 @@ export const saveIncident = async (incident) => {
 };
 
 export const getAllIncidents = async () => {
+  if (localStorage.getItem('sentinel_token')) {
+    const { incidents } = await apiRequest('/api/incidents');
+    return incidents;
+  }
   const db = await initDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], 'readonly');
@@ -57,6 +70,7 @@ export const getAllIncidents = async () => {
 };
 
 export const cleanOldIncidents = async (days = 10) => {
+  if (localStorage.getItem('sentinel_token')) return;
   const db = await initDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], 'readwrite');
@@ -79,3 +93,4 @@ export const cleanOldIncidents = async (days = 10) => {
     request.onerror = (event) => reject(event.target.error);
   });
 };
+import { apiRequest } from './api';

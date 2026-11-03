@@ -1,33 +1,40 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import { useNavigate } from 'react-router-dom';
 import { saveIncident } from '../utils/db';
+import { useTheme } from '../useTheme';
 import './New.css';
+import { RemoteCameraPanel } from './RemoteCamera';
 
 const SafetyMonitoringSystem = () => {
   const [model, setModel] = useState(null);
   const [detections, setDetections] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [debugInfo, setDebugInfo] = useState([]);
+  const [modelLoadAttempt, setModelLoadAttempt] = useState(0);
   const [capturedImage, setCapturedImage] = useState(null);
   const [detectionHistory, setDetectionHistory] = useState([]);
   const [isAlertVisible, setIsAlertVisible] = useState(false);
   const [alertType, setAlertType] = useState(null);
   const [isTelegramSending, setIsTelegramSending] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [lastRecordingUrl, setLastRecordingUrl] = useState('');
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [cameraFeeds, setCameraFeeds] = useState([]);
   const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
 
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const videoRefs = useRef(new Map());
+  const canvasRefs = useRef(new Map());
   const captureCanvasRef = useRef(null);
   
   // Recording refs
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
+  const lastRecordingUrlRef = useRef('');
+  const detectionFrameRef = useRef(null);
   const incidentTracker = useRef({
     activeType: null,
     firstDetectedAt: 0,
@@ -43,83 +50,124 @@ const SafetyMonitoringSystem = () => {
   const CROWD_THRESHOLD = 3;
   const CONFIDENCE_THRESHOLD = 0.6;
   const CROWD_DENSITY_THRESHOLD = 0.25;
-  const FIRE_COLOR_THRESHOLD = 0.7; 
   const FIRE_PIXEL_THRESHOLD = 0.02;
 
   const ADDITIONAL_OBJECTS = ['mobile phone', 'book', 'handbag', 'backpack', 'shoe', 'laptop'];
 
   const logDebug = (message) => {
-    setDebugInfo((prev) => [...prev.slice(-50), `${new Date().toLocaleTimeString()}: ${message}`]);
     console.log(message);
   };
 
+  const discoverCameras = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Camera access is unavailable. Use HTTPS and a supported browser.');
+    }
+    let videoDevices = (await navigator.mediaDevices.enumerateDevices())
+      .filter((device) => device.kind === 'videoinput');
+    if (!videoDevices.length) {
+      const permissionStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      permissionStream.getTracks().forEach((track) => track.stop());
+      videoDevices = (await navigator.mediaDevices.enumerateDevices())
+        .filter((device) => device.kind === 'videoinput');
+    }
+    setDevices(videoDevices);
+    setSelectedDeviceId((current) => current || videoDevices[0]?.deviceId || '');
+    setCameraFeeds(videoDevices.map((device) => ({ device, stream: null, predictions: [], status: 'ready' })));
+    return videoDevices;
+  };
+
   useEffect(() => {
+    let active = true;
     const loadModel = async () => {
       try {
         logDebug('Initializing TensorFlow.js...');
         await tf.ready();
         logDebug('Loading COCO-SSD model...');
-        const loadedModel = await cocoSsd.load({ base: 'mobilenet_v2' });
+        let loadedModel;
+        try {
+          loadedModel = await cocoSsd.load({ base: 'mobilenet_v2' });
+        } catch (primaryError) {
+          logDebug(`MobileNet V2 model failed: ${primaryError.message}. Retrying with MobileNet V1.`);
+          loadedModel = await cocoSsd.load({ base: 'mobilenet_v1' });
+        }
+        if (!active) return;
         setModel(loadedModel);
         setIsLoading(false);
         logDebug('Model loaded successfully');
       } catch (err) {
         const errorMessage = `Model loading failed: ${err.message}`;
-        setError(errorMessage);
+        if (!active) return;
+        setError(`${errorMessage} Camera recording can still be used; retry AI when the network or browser cache is available.`);
         logDebug(errorMessage);
         setIsLoading(false);
       }
     };
     loadModel();
 
-    navigator.mediaDevices.enumerateDevices().then(devices => {
-      const videoDevices = devices.filter(device => device.kind === 'videoinput');
-      setDevices(videoDevices);
-      if (videoDevices.length > 0) {
-        setSelectedDeviceId(videoDevices[0].deviceId);
-      }
-    }).catch(err => console.error("Error enumerating devices:", err));
-  }, []);
+    discoverCameras().then(videoDevices => {
+      if (!active) return;
+      if (!videoDevices.length) setError('No connected cameras were found. Connect a camera and try again.');
+    }).catch(err => {
+      if (active) setError(err.message || 'Unable to access cameras.');
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [modelLoadAttempt]);
 
   const startWebcam = async () => {
+    setError(null);
+    let availableDevices = devices;
     try {
-      const constraints = {
-        video: { 
-          width: { ideal: 640 }, 
-          height: { ideal: 480 }, 
-          deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined 
-        }
-      };
-      // If already playing, stop tracks first
-      if (videoRef.current && videoRef.current.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
-      }
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play();
-          if (canvasRef.current) {
-            canvasRef.current.width = videoRef.current.videoWidth;
-            canvasRef.current.height = videoRef.current.videoHeight;
-          }
-          if (captureCanvasRef.current) {
-            captureCanvasRef.current.width = videoRef.current.videoWidth;
-            captureCanvasRef.current.height = videoRef.current.videoHeight;
-          }
-          startDetection();
-        };
-      }
+      if (!availableDevices.length) availableDevices = await discoverCameras();
     } catch (err) {
-      const errorMessage = `Webcam access failed: ${err.message}`;
-      setError(errorMessage);
-      logDebug(errorMessage);
+      setError(err.message || 'Unable to access cameras.');
+      return;
     }
+    if (!availableDevices.length) {
+      setError('No connected cameras were found. Connect a camera and try again.');
+      return;
+    }
+    cameraFeeds.forEach((feed) => {
+      feed.stream?.getTracks().forEach((track) => track.stop());
+    });
+    const nextFeeds = [];
+    for (const device of availableDevices) {
+      try {
+        const videoConstraints = {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          ...(device.deviceId ? { deviceId: { exact: device.deviceId } } : {}),
+        };
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+        } catch (deviceError) {
+          if (!device.deviceId) throw deviceError;
+          logDebug(`Camera ${device.label || device.deviceId} could not be opened by ID; retrying default camera.`);
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
+        const video = videoRefs.current.get(device.deviceId);
+        if (video) {
+          video.srcObject = stream;
+          await video.play();
+        }
+        nextFeeds.push({ device, stream, predictions: [], status: 'live' });
+      } catch (err) {
+        const errorMessage = err.name === 'NotAllowedError'
+          ? 'Camera permission was denied. Allow camera access in the browser and retry.'
+          : err.name === 'NotFoundError'
+            ? 'No camera is available on this device.'
+            : err.message || 'The camera could not be opened.';
+        nextFeeds.push({ device, stream: null, predictions: [], status: 'error', error: errorMessage });
+        logDebug(`Camera ${device.label || device.deviceId} failed: ${errorMessage}`);
+      }
+    }
+    setCameraFeeds(nextFeeds);
   };
 
-  const detectFire = () => {
-    const video = videoRef.current;
-    const canvas = captureCanvasRef.current;
+  const detectFire = (video, canvas) => {
     if (!video || !canvas) return false;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -134,25 +182,24 @@ const SafetyMonitoringSystem = () => {
     return (firePixelCount / totalPixels) > FIRE_PIXEL_THRESHOLD;
   };
 
-  const detectIncident = async (predictions) => {
+  const detectIncident = async (predictions, canvas, video) => {
     const people = predictions.filter(pred => pred.class === 'person' && pred.score > CONFIDENCE_THRESHOLD);
     const vehicles = predictions.filter(pred => ['car', 'truck', 'motorcycle', 'bus', 'bicycle'].includes(pred.class) && pred.score > CONFIDENCE_THRESHOLD);
     const fireIndicators = predictions.filter(pred => ['fire hydrant', 'fire truck'].includes(pred.class) && pred.score > CONFIDENCE_THRESHOLD);
     const additionalObjects = predictions.filter(pred => ADDITIONAL_OBJECTS.includes(pred.class) && pred.score > CONFIDENCE_THRESHOLD);
 
-    if (people.length >= CROWD_THRESHOLD && calculateCrowdDensity(people) > CROWD_DENSITY_THRESHOLD) {
+    if (people.length >= CROWD_THRESHOLD && calculateCrowdDensity(people, canvas) > CROWD_DENSITY_THRESHOLD) {
       return { type: 'overcrowd', confidence: Math.max(...people.map(p => p.score)), count: people.length };
     }
     if (vehicles.length >= 2 && detectCollision(vehicles).length > 0) {
       return { type: 'accident', confidence: Math.max(...vehicles.map(v => v.score)) };
     }
-    if (fireIndicators.length > 0 || detectFire()) return { type: 'fire', confidence: 0.8 };
+    if (fireIndicators.length > 0 || detectFire(video, canvas)) return { type: 'fire', confidence: 0.8 };
     if (additionalObjects.length > 0) return { type: 'object_movement', confidence: Math.max(...additionalObjects.map(o => o.score)), objects: additionalObjects.map(o => o.class) };
     return null;
   };
 
-  const calculateCrowdDensity = (people) => {
-    const canvas = canvasRef.current;
+  const calculateCrowdDensity = (people, canvas) => {
     if (!canvas) return 0;
     const totalArea = canvas.width * canvas.height;
     const peopleArea = people.reduce((acc, person) => {
@@ -222,17 +269,33 @@ const SafetyMonitoringSystem = () => {
 
   // Video recording functions
   const startRecording = () => {
-    if (!videoRef.current || !videoRef.current.srcObject) return;
+    const focusedVideo = videoRefs.current.get(selectedDeviceId);
+    if (!focusedVideo || !focusedVideo.srcObject) {
+      setError('Start a live camera before recording.');
+      return;
+    }
     try {
-      const stream = videoRef.current.srcObject;
-      // Use compressed video settings
-      const options = { mimeType: 'video/webm;codecs=vp8,opus', videoBitsPerSecond: 250000 };
-      let mediaRecorder;
-      try {
-        mediaRecorder = new MediaRecorder(stream, options);
-      } catch (e) {
-        // Fallback if codec not supported
-        mediaRecorder = new MediaRecorder(stream, { videoBitsPerSecond: 250000 });
+      const stream = focusedVideo.srcObject;
+      if (!stream.getVideoTracks().length) {
+        setError('The selected camera has no active video track.');
+        return;
+      }
+      const mimeTypes = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+      const mimeType = mimeTypes.find((type) => MediaRecorder.isTypeSupported(type));
+      const mediaRecorder = new MediaRecorder(stream, {
+        ...(mimeType ? { mimeType } : {}),
+        videoBitsPerSecond: 250000,
+      });
+      if (!incidentTracker.current.initialIncidentData) {
+        incidentTracker.current.initialIncidentData = {
+          id: Date.now().toString(),
+          timestamp: Date.now(),
+          image: captureVideoFrame(focusedVideo),
+          type: 'manual_recording',
+          confidence: 100,
+          location: 'Local camera',
+          details: `Manual recording from ${devices.find((device) => device.deviceId === selectedDeviceId)?.label || 'selected camera'}`,
+        };
       }
       
       mediaRecorder.ondataavailable = (event) => {
@@ -244,20 +307,41 @@ const SafetyMonitoringSystem = () => {
       mediaRecorder.onstop = async () => {
         const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
         recordedChunksRef.current = [];
-        
-        // Save to IndexedDB
-        if (incidentTracker.current.initialIncidentData) {
-          const incidentToSave = {
-            ...incidentTracker.current.initialIncidentData,
-            videoBlob: blob
-          };
-          await saveIncident(incidentToSave);
-          logDebug('Incident saved to History with Video');
+        if (blob.size === 0) {
+          setError('The recording finished without video data. Try starting the camera again.');
+        } else {
+          const recordingUrl = URL.createObjectURL(blob);
+          setLastRecordingUrl((previousUrl) => {
+            if (previousUrl) URL.revokeObjectURL(previousUrl);
+            lastRecordingUrlRef.current = recordingUrl;
+            return recordingUrl;
+          });
+          const downloadLink = document.createElement('a');
+          downloadLink.href = recordingUrl;
+          downloadLink.download = `sentinel-recording-${new Date().toISOString().replace(/[:.]/g, '-')}.webm`;
+          downloadLink.click();
         }
         
-        // Reset tracking
-        incidentTracker.current = { activeType: null, firstDetectedAt: 0, lastDetectedAt: 0, isRecording: false, telegramSent: false, initialIncidentData: null };
+        try {
+          if (incidentTracker.current.initialIncidentData) {
+            const incidentToSave = {
+              ...incidentTracker.current.initialIncidentData,
+              videoBlob: blob
+            };
+            await saveIncident(incidentToSave);
+            logDebug('Incident saved to History with Video');
+          }
+        } catch (error) {
+          setError(`Recording could not be saved: ${error.message}`);
+        } finally {
+          incidentTracker.current = { activeType: null, firstDetectedAt: 0, lastDetectedAt: 0, isRecording: false, telegramSent: false, initialIncidentData: null };
+          setIsRecording(false);
+        }
+      };
+      mediaRecorder.onerror = () => {
+        setError('The browser could not record this camera stream.');
         setIsRecording(false);
+        incidentTracker.current.isRecording = false;
       };
 
       recordedChunksRef.current = [];
@@ -265,9 +349,10 @@ const SafetyMonitoringSystem = () => {
       mediaRecorderRef.current = mediaRecorder;
       setIsRecording(true);
       incidentTracker.current.isRecording = true;
-      logDebug('Started recording incident');
+      setError(null);
+      logDebug(`Started recording incident${mimeType ? ` with ${mimeType}` : ''}`);
     } catch (e) {
-      console.error('Recording error:', e);
+      setError(`Recording could not start: ${e.message}`);
     }
   };
 
@@ -278,8 +363,8 @@ const SafetyMonitoringSystem = () => {
     }
   };
 
-  const captureVideoFrame = () => {
-    const video = videoRef.current;
+  const captureVideoFrame = (sourceVideo = videoRefs.current.get(selectedDeviceId)) => {
+    const video = sourceVideo;
     const canvas = captureCanvasRef.current;
     if (!video || !canvas) return null;
     const ctx = canvas.getContext('2d');
@@ -287,7 +372,7 @@ const SafetyMonitoringSystem = () => {
     return canvas.toDataURL('image/jpeg', 0.6); // compressed image
   };
 
-  const processIncidentState = (incident) => {
+  const processIncidentState = (incident, sourceVideo) => {
     const now = Date.now();
     const tracker = incidentTracker.current;
 
@@ -303,7 +388,7 @@ const SafetyMonitoringSystem = () => {
         const incidentDetails = {
           id: now.toString(),
           timestamp: new Date().getTime(),
-          image: captureVideoFrame(),
+          image: captureVideoFrame(sourceVideo),
           type: incident.type,
           confidence: Math.round(incident.confidence * 100),
           location: 'Bangalore, Karnataka',
@@ -349,15 +434,15 @@ const SafetyMonitoringSystem = () => {
     }
   };
 
-  const detectObjects = async () => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || !model || video.readyState < 2) return;
+  const detectObjects = async (feed) => {
+    const video = videoRefs.current.get(feed.device.deviceId);
+    const canvas = canvasRefs.current.get(feed.device.deviceId);
+    if (!video || !canvas || !model || video.readyState < 2) return feed;
     try {
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
       const predictions = await model.detect(video);
-      const incident = await detectIncident(predictions);
-      setDetections(predictions);
-
+      const incident = await detectIncident(predictions, canvas, video);
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       predictions.forEach((prediction) => {
@@ -375,25 +460,40 @@ const SafetyMonitoringSystem = () => {
         ctx.fillStyle = 'white';
         ctx.fillText(label, x + 5, y - 5);
       });
-
-      processIncidentState(incident);
+      if (feed.device.deviceId === selectedDeviceId) setDetections(predictions);
+      processIncidentState(incident, video);
+      return { ...feed, predictions };
     } catch (error) {
-      console.error('Object detection error:', error);
+      console.error(`Object detection error on ${feed.device.label || feed.device.deviceId}:`, error);
+      return feed;
     }
   };
 
   const startDetection = () => {
-    if (!model || !videoRef.current) return;
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    if (!model || !cameraFeeds.length) return;
+    if (detectionFrameRef.current) {
+      cancelAnimationFrame(detectionFrameRef.current);
+    }
     const detectFrame = async () => {
-      await detectObjects();
-      requestAnimationFrame(detectFrame);
+      const liveFeeds = cameraFeeds.filter((feed) => feed.stream);
+      const updatedFeeds = await Promise.all(liveFeeds.map((feed) => detectObjects(feed)));
+      if (updatedFeeds.length) {
+        setCameraFeeds((current) => current.map((feed) => updatedFeeds.find((updated) => updated.device.deviceId === feed.device.deviceId) || feed));
+      }
+      detectionFrameRef.current = requestAnimationFrame(detectFrame);
     };
     detectFrame();
   };
+
+  const hasLiveCameras = cameraFeeds.some((feed) => feed.stream);
+
+  useEffect(() => {
+    if (model && cameraFeeds.some((feed) => feed.stream)) {
+      startDetection();
+    }
+    // The loop is restarted only when model availability or live-camera presence changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model, hasLiveCameras]);
 
   useEffect(() => {
     if (isAlertVisible) {
@@ -401,6 +501,24 @@ const SafetyMonitoringSystem = () => {
       return () => clearTimeout(timer);
     }
   }, [isAlertVisible]);
+
+  useEffect(() => () => {
+    if (detectionFrameRef.current) {
+      cancelAnimationFrame(detectionFrameRef.current);
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    videoRefs.current.forEach((video) => {
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach((track) => track.stop());
+        video.srcObject = null;
+      }
+    });
+    videoRefs.current.clear();
+    canvasRefs.current.clear();
+    if (lastRecordingUrlRef.current) URL.revokeObjectURL(lastRecordingUrlRef.current);
+  }, []);
 
   const getAlertTitle = (type) => {
     switch (type) {
@@ -412,29 +530,47 @@ const SafetyMonitoringSystem = () => {
     }
   };
 
+  const detectedTypes = [...new Set(detections.map((detection) => detection.class))];
+
   return (
     <div className="safety-monitoring-container">
       <div className="monitoring-wrapper">
         {/* ─── HEADER ─── */}
         <header className="monitoring-header">
           <div className="header-content">
-            <h1 className="system-title">
-              <span className="ai-icon">🤖</span> AI Safety Monitoring
-            </h1>
+            <div className="system-heading">
+              <div className="system-brand-mark">✦</div>
+              <div>
+                <p className="system-kicker">SENTINEL / OPERATIONS</p>
+                <h1 className="system-title">Recording workspace</h1>
+              </div>
+            </div>
             <div className="header-actions">
+              <div className="theme-switcher" role="group" aria-label="Appearance mode">
+                {["light", "dark", "system"].map((option) => (
+                  <button key={option} type="button" className={theme === option ? "selected" : ""} onClick={() => setTheme(option)}>
+                    {option === "system" ? "◐" : option === "light" ? "☼" : "◑"} <span>{option}</span>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => navigate('/dashboard')} className="test-btn">▦ Dashboard</button>
               <button onClick={() => navigate('/history')} className="test-btn">📅 History</button>
+              <button onClick={() => {               localStorage.removeItem('sentinel_session'); localStorage.removeItem('sentinel_token'); navigate('/'); }} className="test-btn">Sign out</button>
               <div className={`telegram-status ${TELEGRAM_BOT_TOKEN ? 'status-online' : 'status-offline'}`}>
-                Telegram: {TELEGRAM_BOT_TOKEN ? 'Connected' : 'Not Configured'}
+                Telegram: {isTelegramSending ? 'Sending alert...' : TELEGRAM_BOT_TOKEN ? 'Connected' : 'Not Configured'}
               </div>
             </div>
           </div>
           {error && <div className="error-notification">{error}</div>}
         </header>
 
+        <RemoteCameraPanel />
+
         {/* ─── MAIN LAYOUT ─── */}
         <div className="monitor-layout">
           {/* Video Feed */}
           <div className="video-monitoring-section">
+            <div className="feed-toolbar"><div><span className="feed-live-dot" /> LIVE CAMERA FEED <small>• CAM-{selectedDeviceId ? selectedDeviceId.slice(0, 4).toUpperCase() : 'LOCAL'}</small></div><span className="feed-resolution">640 × 480 HD</span></div>
             {/* Recording indicator bar */}
             {isRecording && (
               <div className="recording-bar" onClick={stopRecording}>
@@ -443,9 +579,29 @@ const SafetyMonitoringSystem = () => {
               </div>
             )}
 
-            <div className="video-canvas-container">
-              <video ref={videoRef} className="monitoring-video" autoPlay playsInline muted />
-              <canvas ref={canvasRef} className="detection-overlay-canvas" />
+            <div className={`camera-wall ${cameraFeeds.length === 1 ? 'single-camera' : ''}`}>
+              {cameraFeeds.map((feed) => {
+                const deviceId = feed.device.deviceId;
+                const isFocused = selectedDeviceId === deviceId;
+                return (
+                  <button
+                    className={`camera-tile ${isFocused ? 'focused' : ''} ${feed.status === 'error' ? 'camera-error' : ''}`}
+                    key={deviceId}
+                    type="button"
+                    onClick={() => setSelectedDeviceId(deviceId)}
+                    onDoubleClick={() => videoRefs.current.get(deviceId)?.requestFullscreen?.()}
+                  >
+                    <div className="camera-tile-header"><strong>{feed.device.label || `Camera ${deviceId.slice(0, 5)}`}</strong><span>{feed.status === 'live' ? 'LIVE' : feed.status === 'error' ? 'UNAVAILABLE' : 'READY'}</span></div>
+                    <div className="video-canvas-container">
+                      <video ref={(element) => { if (element) videoRefs.current.set(deviceId, element); else videoRefs.current.delete(deviceId); }} className="monitoring-video" autoPlay playsInline muted />
+                      <canvas ref={(element) => { if (element) canvasRefs.current.set(deviceId, element); else canvasRefs.current.delete(deviceId); }} className="detection-overlay-canvas" />
+                      {feed.status === 'error' && <div className="camera-error-message">Camera unavailable<br /><small>{feed.error}</small></div>}
+                    </div>
+                    <div className="camera-tile-footer"><span>{feed.predictions.length} detected</span><span>{isFocused ? 'FOCUS VIEW • DOUBLE-CLICK FULLSCREEN' : 'Select to focus'}</span></div>
+                  </button>
+                );
+              })}
+              {!cameraFeeds.length && <div className="empty-camera-wall">No cameras detected. Connect a camera and reload this page.</div>}
             </div>
 
             {/* Alert overlay inside video section */}
@@ -468,7 +624,7 @@ const SafetyMonitoringSystem = () => {
           <div className="side-panel">
             {/* Camera Card */}
             <div className="side-panel-card">
-              <span className="side-panel-label">📷 Camera</span>
+              <span className="side-panel-label">📷 Camera wall</span>
               <select 
                 value={selectedDeviceId} 
                 onChange={(e) => setSelectedDeviceId(e.target.value)}
@@ -482,20 +638,46 @@ const SafetyMonitoringSystem = () => {
               </select>
               <button 
                 onClick={startWebcam} 
-                className={`btn-camera ${isLoading ? 'disabled' : 'active'}`} 
-                disabled={isLoading}
+                className={`btn-camera ${!devices.length ? 'disabled' : 'active'}`}
+                disabled={!devices.length}
               >
-                {isLoading ? "Loading..." : (videoRef.current?.srcObject ? "🔄 Switch" : "▶ Start")}
+                {isLoading ? "Loading AI... Start cameras" : model ? (hasLiveCameras ? "🔄 Restart all cameras" : "▶ Start all cameras") : "▶ Start cameras without AI"}
               </button>
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                className="btn-camera active"
+                disabled={!hasLiveCameras}
+              >
+                {isRecording ? "⏹ Stop recording" : "● Start recording"}
+              </button>
+              {lastRecordingUrl && (
+                <a className="btn-camera recording-download" href={lastRecordingUrl} download="sentinel-recording.webm">
+                  Download last recording
+                </a>
+              )}
+              <small className="camera-help">
+                Recording uses the selected focus camera. AI detection continues on every live camera.
+              </small>
+              {!model && !isLoading && (
+                <button onClick={() => { setError(null); setIsLoading(true); setModelLoadAttempt((attempt) => attempt + 1); }} className="retry-model-btn">
+                  Retry model download
+                </button>
+              )}
+            </div>
+            <div className="side-panel-card insight-card">
+              <div className="card-heading"><span className="side-panel-label">Detection insight</span><span className="card-spark">↗</span></div>
+              <strong className="insight-value">{detections.length ? `${detections.length} tracked` : 'No objects'}</strong>
+              <div className="object-tags">{detectedTypes.length ? detectedTypes.slice(0, 4).map((type) => <span key={type}>{type}</span>) : <span className="muted-tag">Start a camera to scan</span>}</div>
             </div>
 
             {/* Status Card */}
             <div className="side-panel-card">
               <span className="side-panel-label">Status</span>
-              <div className={`status-pill ${videoRef.current?.srcObject ? 'live' : 'idle'}`}>
+              <div className={`status-pill ${hasLiveCameras ? 'live' : 'idle'}`}>
                 <span className="status-dot"></span>
-                {videoRef.current?.srcObject ? 'Monitoring' : 'Idle'}
+                {hasLiveCameras ? `Monitoring ${cameraFeeds.filter((feed) => feed.stream).length} cameras` : 'Idle'}
               </div>
+
               {isRecording && (
                 <div className="status-pill" style={{background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.2)'}}>
                   <span className="status-dot"></span>
