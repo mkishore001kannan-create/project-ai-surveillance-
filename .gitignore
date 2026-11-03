@@ -15,6 +15,9 @@ dist-ssr
 .env.*
 !.env.example
 data/
+getMe.js
+getUpdates.js
+test-tg.js
 
 # Editor directories and files
 .vscode/*
