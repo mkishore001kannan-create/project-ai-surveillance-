@@ -138,6 +138,7 @@ This is the recommended way to access Sentinel securely from different networks 
 6. Redeploy the frontend after setting `VITE_API_URL`.
 
 Vercel and Render provide trusted HTTPS certificates automatically. Use the generated `https://` URLs.
+The Render service is configured to listen on `0.0.0.0`, as required by Render's public routing. Do not copy the local `HOST=127.0.0.1` value into Render.
 
 Verify the API with:
 
