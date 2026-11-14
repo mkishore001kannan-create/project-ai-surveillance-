@@ -159,10 +159,13 @@ SQLite uses the Render persistent disk configured in `render.yaml`. This is suit
 ## Validation commands
 
 ```bash
+npm test
 npm run lint
 npm run build
 node --check server/index.js
 ```
+
+`npm test` starts an isolated temporary API/database and checks authentication, role restrictions, camera ownership, incident ownership, and WebSocket signaling. The temporary test database is removed after the run.
 
 ## Project scripts
 

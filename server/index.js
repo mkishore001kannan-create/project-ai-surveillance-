@@ -219,9 +219,21 @@ app.get('/api/incidents', requireAuth, (request, response) => {
 app.post('/api/incidents', requireAuth, (request, response) => {
   const incident = request.body;
   if (!incident?.id || !incident.type || !Number.isFinite(Number(incident.timestamp))) return response.status(400).json({ error: 'Incident id, type, and timestamp are required' });
+  const existingIncident = databaseApi.prepare('SELECT owner_id FROM incidents WHERE id = ?').get(incident.id);
+  if (existingIncident && existingIncident.owner_id !== request.user.id && request.user.role !== 'admin') {
+    return response.status(403).json({ error: 'Incident access denied' });
+  }
   databaseApi.prepare(`
-    INSERT OR REPLACE INTO incidents (id, owner_id, timestamp, type, confidence, location, details, image, video_path)
+    INSERT INTO incidents (id, owner_id, timestamp, type, confidence, location, details, image, video_path)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      timestamp = excluded.timestamp,
+      type = excluded.type,
+      confidence = excluded.confidence,
+      location = excluded.location,
+      details = excluded.details,
+      image = excluded.image,
+      video_path = excluded.video_path
   `).run(
     incident.id,
     request.user.id,

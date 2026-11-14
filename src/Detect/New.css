@@ -23,29 +23,75 @@
   --radius-xl: 20px;
 }
 :root[data-theme="light"] {
-  --bg-dark: #f3f6fb;
+  --primary: #5146d8;
+  --primary-dark: #4338ca;
+  --primary-light: #5146d8;
+  --accent: #087f9b;
+  --bg-dark: #f4f7fc;
   --bg-card: #ffffff;
-  --bg-card-hover: #e8edf7;
+  --bg-card-hover: #edf2fa;
   --surface: #ffffff;
-  --text-primary: #162033;
-  --text-secondary: #526179;
-  --text-muted: #8290a8;
-  --border: rgba(37, 55, 85, 0.13);
-  --glass: rgba(37, 55, 85, 0.05);
+  --text-primary: #17243b;
+  --text-secondary: #42526b;
+  --text-muted: #64748b;
+  --border: #dce4f0;
+  --glass: rgba(23, 36, 59, 0.045);
 }
 @media (prefers-color-scheme: light) {
   :root[data-theme="system"] {
-    --bg-dark: #f3f6fb;
+    --primary: #5146d8;
+    --primary-dark: #4338ca;
+    --primary-light: #5146d8;
+    --accent: #087f9b;
+    --bg-dark: #f4f7fc;
     --bg-card: #ffffff;
-    --bg-card-hover: #e8edf7;
+    --bg-card-hover: #edf2fa;
     --surface: #ffffff;
-    --text-primary: #162033;
-    --text-secondary: #526179;
-    --text-muted: #8290a8;
-    --border: rgba(37, 55, 85, 0.13);
-    --glass: rgba(37, 55, 85, 0.05);
+    --text-primary: #17243b;
+    --text-secondary: #42526b;
+    --text-muted: #64748b;
+    --border: #dce4f0;
+    --glass: rgba(23, 36, 59, 0.045);
   }
 }
+
+.history-wrapper { max-width: 1200px; }
+.history-layout { display: grid; grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); gap: 24px; padding: 20px 0; }
+.history-calendar-card, .history-empty { padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-card); }
+.history-calendar-card h2, .history-results > h2 { margin: 0 0 16px; color: var(--text-primary); font: 600 1rem var(--font-display); }
+.history-calendar { width: 100%; border: 1px solid var(--border) !important; border-radius: 12px; background: var(--bg-card) !important; color: var(--text-primary) !important; font-family: inherit; }
+.history-calendar .react-calendar__navigation button,
+.history-calendar .react-calendar__month-view__weekdays,
+.history-calendar .react-calendar__month-view__days__day { color: var(--text-primary); }
+.history-calendar .react-calendar__navigation button:enabled:hover,
+.history-calendar .react-calendar__navigation button:enabled:focus,
+.history-calendar .react-calendar__tile:enabled:hover,
+.history-calendar .react-calendar__tile:enabled:focus { background: var(--bg-card-hover); border-radius: 7px; }
+.history-calendar .react-calendar__tile--now { background: var(--glass); }
+.history-calendar .react-calendar__tile--active { background: var(--primary) !important; color: #fff !important; border-radius: 7px; }
+.history-calendar .react-calendar__month-view__days__day--neighboringMonth { color: var(--text-muted); }
+.history-calendar .has-incident-day { box-shadow: inset 0 -2px #e5484d; }
+.history-results { min-width: 0; }
+.history-empty { color: var(--text-secondary); }
+.history-error { margin: 0 0 12px; color: var(--danger); }
+.history-section { margin: 22px 0; }
+.history-section-title { padding-bottom: 9px; border-bottom: 1px solid var(--border); font: 600 .95rem var(--font-display); }
+.video-title { color: var(--danger); }
+.image-title { color: var(--accent); }
+.history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; margin-top: 14px; }
+.history-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card); }
+.history-media-trigger { position: relative; display: block; width: 100%; height: 130px; overflow: hidden; padding: 0; border: 0; background: #0b1220; }
+.history-media-trigger img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.history-media-trigger:focus-visible { outline-offset: -3px; }
+.history-play-icon { position: absolute; inset: 0; display: grid; place-items: center; color: white; font-size: 2rem; background: rgba(0,0,0,.2); }
+.history-card-details { padding: 12px; color: var(--text-primary); }
+.history-card-details strong { display: block; text-transform: capitalize; }
+.history-card-details time, .history-card-details p { display: block; margin-top: 5px; color: var(--text-secondary); font-size: .75rem; }
+.history-modal { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 24px; background: rgba(3, 7, 18, .9); }
+.history-modal-content { position: relative; max-width: min(1100px, 95vw); max-height: 90vh; }
+.history-modal-content img, .history-modal-content video { display: block; max-width: 100%; max-height: 85vh; border-radius: 10px; }
+.history-modal-close { position: absolute; z-index: 1; top: -38px; right: 0; border: 0; background: transparent; color: white; font-size: 2rem; }
+@media (max-width: 760px) { .history-layout { grid-template-columns: 1fr; } .history-calendar-card { max-width: none; } }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -879,4 +925,103 @@
 }
 .login-footer a:hover {
   text-decoration: underline;
+}
+
+/* Light mode uses solid, high-contrast surfaces instead of dark glass gradients. */
+:root[data-theme="light"] .safety-monitoring-container {
+  background: var(--bg-dark);
+}
+:root[data-theme="light"] .summary-card {
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(34, 55, 89, .055);
+}
+:root[data-theme="light"] .hero-strip {
+  background:
+    radial-gradient(circle at 88% 18%, rgba(8, 127, 155, .09), transparent 34%),
+    linear-gradient(120deg, #eef1ff, #f8fbff 72%);
+  border-color: #d9def8;
+  box-shadow: 0 8px 24px rgba(38, 57, 96, .045);
+}
+:root[data-theme="light"] .dashboard-welcome {
+  background:
+    radial-gradient(circle at 90% 15%, rgba(8, 127, 155, .075), transparent 35%),
+    linear-gradient(135deg, #f0f2ff, #fff 76%);
+}
+:root[data-theme="light"] .dashboard-card,
+:root[data-theme="light"] .side-panel-card,
+:root[data-theme="light"] .video-monitoring-section,
+:root[data-theme="light"] .activity-panel,
+:root[data-theme="light"] .remote-camera-panel,
+:root[data-theme="light"] .login-card {
+  box-shadow: 0 5px 20px rgba(34, 55, 89, .055);
+}
+:root[data-theme="light"] .brand-name {
+  color: var(--text-primary);
+}
+:root[data-theme="light"] .error-notification {
+  color: #b42318;
+}
+:root[data-theme="light"] .error-message {
+  color: #b42318;
+  background: #fff1f0;
+  border-color: #f3c3bf;
+}
+:root[data-theme="light"] .camera-note {
+  color: #805600 !important;
+}
+:root[data-theme="light"] .camera-state {
+  color: #805600;
+}
+:root[data-theme="light"] .form-group input::placeholder,
+:root[data-theme="light"] .user-form input::placeholder,
+:root[data-theme="light"] .camera-form input::placeholder {
+  color: #718096;
+  opacity: 1;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="system"] .safety-monitoring-container {
+    background: var(--bg-dark);
+  }
+  :root[data-theme="system"] .summary-card {
+    background: #fff;
+    box-shadow: 0 4px 16px rgba(34, 55, 89, .055);
+  }
+  :root[data-theme="system"] .hero-strip,
+  :root[data-theme="system"] .dashboard-welcome {
+    background:
+      radial-gradient(circle at 90% 15%, rgba(8, 127, 155, .075), transparent 35%),
+      linear-gradient(135deg, #eef1ff, #fff 76%);
+  }
+  :root[data-theme="system"] .dashboard-card,
+  :root[data-theme="system"] .side-panel-card,
+  :root[data-theme="system"] .video-monitoring-section,
+  :root[data-theme="system"] .activity-panel,
+  :root[data-theme="system"] .remote-camera-panel,
+  :root[data-theme="system"] .login-card {
+    box-shadow: 0 5px 20px rgba(34, 55, 89, .055);
+  }
+  :root[data-theme="system"] .brand-name {
+    color: var(--text-primary);
+  }
+  :root[data-theme="system"] .error-notification {
+    color: #b42318;
+  }
+  :root[data-theme="system"] .error-message {
+    color: #b42318;
+    background: #fff1f0;
+    border-color: #f3c3bf;
+  }
+  :root[data-theme="system"] .camera-note {
+    color: #805600 !important;
+  }
+  :root[data-theme="system"] .camera-state {
+    color: #805600;
+  }
+  :root[data-theme="system"] .form-group input::placeholder,
+  :root[data-theme="system"] .user-form input::placeholder,
+  :root[data-theme="system"] .camera-form input::placeholder {
+    color: #718096;
+    opacity: 1;
+  }
 }

@@ -63,22 +63,28 @@ const Login = () => {
         <p className="login-subtitle">Sign in to access your live safety command center.</p>
         <form onSubmit={handleLogin} className="login-form">
           <div className="form-group">
-            <label>Email address</label>
+            <label htmlFor="login-email">Email address</label>
             <input
-              type="text"
+              id="login-email"
+              name="email"
+              type="email"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="operator@example.com"
+              autoComplete="username"
               required
             />
           </div>
           <div className="form-group">
-            <label>Password</label>
+            <label htmlFor="login-password">Password</label>
             <input
+              id="login-password"
+              name="password"
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
+              autoComplete="current-password"
               required
             />
             <button type="button" className="password-toggle" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"}>
